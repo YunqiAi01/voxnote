@@ -80,7 +80,7 @@ export default function Header() {
                     href="/pricing"
                     className="text-sm text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 transition-colors"
                   >
-                    定价
+                    Pro会员
                   </Link>
                   <div className="flex items-center gap-2">
                     {user.user_metadata?.avatar_url ? (
@@ -113,7 +113,7 @@ export default function Header() {
                     href="/pricing"
                     className="text-sm text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 transition-colors"
                   >
-                    定价
+                    Pro会员
                   </Link>
                   <Link
                     href="/login"
