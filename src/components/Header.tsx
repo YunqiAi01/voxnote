@@ -76,6 +76,12 @@ export default function Header() {
                   >
                     历史笔记
                   </Link>
+                  <Link
+                    href="/pricing"
+                    className="text-sm text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 transition-colors"
+                  >
+                    定价
+                  </Link>
                   <div className="flex items-center gap-2">
                     {user.user_metadata?.avatar_url ? (
                       <img
@@ -103,6 +109,12 @@ export default function Header() {
                 </div>
               ) : (
                 <div className="flex items-center gap-3">
+                  <Link
+                    href="/pricing"
+                    className="text-sm text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 transition-colors"
+                  >
+                    定价
+                  </Link>
                   <Link
                     href="/login"
                     className="text-sm font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 transition-colors"
