@@ -1,5 +1,4 @@
 import Header from "@/components/Header";
-import Link from "next/link";
 
 const flashEnd = new Date("2026-12-31T23:59:59").getTime();
 
@@ -105,12 +104,12 @@ export default async function PricingPage({
                 <li className="flex items-start gap-2"><span className="text-amber-500 mt-0.5">✓</span> 无限 AI 整理</li>
               </ul>
               <div className="mt-6 pt-6 border-t border-amber-200 dark:border-amber-800/50">
-                <Link
+                <a
                   href="/api/checkout?plan=flash"
                   className="block w-full text-center py-2.5 rounded-xl bg-amber-400 text-amber-900 font-semibold text-sm hover:bg-amber-300 transition-colors"
                 >
                   立即抢购
-                </Link>
+                </a>
               </div>
             </div>
           )}
@@ -128,12 +127,12 @@ export default async function PricingPage({
               <li className="flex items-start gap-2"><span className="text-emerald-500 mt-0.5">✓</span> 无限 AI 整理</li>
             </ul>
             <div className="mt-6 pt-6 border-t border-zinc-100 dark:border-zinc-800">
-              <Link
+              <a
                 href="/api/checkout?plan=monthly"
                 className="block w-full text-center py-2.5 rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 font-medium text-sm hover:bg-zinc-800 dark:hover:bg-zinc-100 transition-colors"
               >
                 订阅月付
-              </Link>
+              </a>
             </div>
           </div>
 
@@ -150,12 +149,12 @@ export default async function PricingPage({
               <li className="flex items-start gap-2"><span className="text-emerald-500 mt-0.5">✓</span> 相当于每月仅 $3.33</li>
             </ul>
             <div className="mt-6 pt-6 border-t border-zinc-100 dark:border-zinc-800">
-              <Link
+              <a
                 href="/api/checkout?plan=yearly"
                 className="block w-full text-center py-2.5 rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 font-medium text-sm hover:bg-zinc-800 dark:hover:bg-zinc-100 transition-colors"
               >
                 订阅年付
-              </Link>
+              </a>
             </div>
           </div>
         </div>
