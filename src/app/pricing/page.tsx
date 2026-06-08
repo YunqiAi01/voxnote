@@ -36,18 +36,33 @@ export default async function PricingPage({
 
         {/* Success / Error Message */}
         {success === "success" && (
-          <div className="max-w-md mx-auto mb-8 p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-sm text-center">
-            🎉 支付成功！你的 Pro 会员已激活，请刷新页面查看。
+          <div className="max-w-xl mx-auto mb-8 p-5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800">
+            <div className="text-emerald-700 dark:text-emerald-300 font-semibold text-base mb-1">
+              🎉 支付成功！
+            </div>
+            <p className="text-emerald-600 dark:text-emerald-400 text-sm">
+              你的 Pro 会员已激活，刷新页面即可查看。
+            </p>
           </div>
         )}
         {error && errorMessages[error] && (
-          <div className="max-w-md mx-auto mb-8 p-4 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-sm text-center">
-            ❌ {errorMessages[error]}
+          <div className="max-w-xl mx-auto mb-8 p-5 rounded-2xl bg-amber-50 dark:bg-amber-950/20 border-2 border-amber-300 dark:border-amber-600">
+            <div className="text-amber-800 dark:text-amber-200 font-semibold text-base mb-2">
+              ⚠️ {errorMessages[error]}
+            </div>
             {detail && (
-              <div className="mt-2 text-xs opacity-70 break-all">
+              <div className="text-xs text-amber-700 dark:text-amber-300 break-all mb-3 bg-amber-100 dark:bg-amber-950/40 p-2 rounded-lg font-mono">
                 {decodeURIComponent(detail)}
               </div>
             )}
+            <div className="text-sm text-amber-700 dark:text-amber-300 space-y-1">
+              <p className="font-medium">可能的原因：</p>
+              <ul className="list-disc list-inside text-xs space-y-0.5 opacity-80">
+                <li>域名未在 Paddle 后台审批（检查 Paddle → Settings → Domain approval）</li>
+                <li>支付方式未配置（检查 Paddle → Checkout settings）</li>
+                <li>Price ID 或 API Key 配置错误</li>
+              </ul>
+            </div>
           </div>
         )}
 
