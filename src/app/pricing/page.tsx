@@ -1,24 +1,25 @@
-"use client";
-
 import Header from "@/components/Header";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { Suspense } from "react";
 
 const flashEnd = new Date("2026-12-31T23:59:59").getTime();
 
-function PricingContent() {
+const errorMessages: Record<string, string> = {
+  checkout_failed: "支付创建失败，请稍后重试",
+  no_checkout_url: "支付链接生成失败",
+  checkout_error: "网络错误，请检查网络后重试",
+};
+
+export default async function PricingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string; detail?: string; checkout?: string }>;
+}) {
+  const params = await searchParams;
+  const error = params.error;
+  const detail = params.detail;
+  const success = params.checkout;
   const now = Date.now();
   const flashActive = now < flashEnd;
-  const searchParams = useSearchParams();
-  const error = searchParams.get("error");
-  const detail = searchParams.get("detail");
-  const success = searchParams.get("checkout");
-  const errorMessages: Record<string, string> = {
-    checkout_failed: "支付创建失败，请稍后重试",
-    no_checkout_url: "支付链接生成失败",
-    checkout_error: "网络错误，请检查网络后重试",
-  };
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
@@ -43,7 +44,11 @@ function PricingContent() {
         {error && errorMessages[error] && (
           <div className="max-w-md mx-auto mb-8 p-4 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-sm text-center">
             ❌ {errorMessages[error]}
-            {detail && <div className="mt-2 text-xs opacity-70 break-all">{decodeURIComponent(detail)}</div>}
+            {detail && (
+              <div className="mt-2 text-xs opacity-70 break-all">
+                {decodeURIComponent(detail)}
+              </div>
+            )}
           </div>
         )}
 
@@ -156,13 +161,5 @@ function PricingContent() {
         </div>
       </main>
     </div>
-  );
-}
-
-export default function PricingPage() {
-  return (
-    <Suspense fallback={<div className="min-h-screen bg-zinc-50 dark:bg-zinc-950" />}>
-      <PricingContent />
-    </Suspense>
   );
 }
