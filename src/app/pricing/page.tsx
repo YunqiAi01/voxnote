@@ -12,6 +12,7 @@ function PricingContent() {
   const flashActive = now < flashEnd;
   const searchParams = useSearchParams();
   const error = searchParams.get("error");
+  const detail = searchParams.get("detail");
   const success = searchParams.get("checkout");
   const errorMessages: Record<string, string> = {
     checkout_failed: "支付创建失败，请稍后重试",
@@ -42,6 +43,7 @@ function PricingContent() {
         {error && errorMessages[error] && (
           <div className="max-w-md mx-auto mb-8 p-4 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-sm text-center">
             ❌ {errorMessages[error]}
+            {detail && <div className="mt-2 text-xs opacity-70 break-all">{decodeURIComponent(detail)}</div>}
           </div>
         )}
 

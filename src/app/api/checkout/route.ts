@@ -61,7 +61,10 @@ export async function GET(request: NextRequest) {
 
     if (!response.ok) {
       console.error("Paddle transaction error:", response.status, responseText);
-      return NextResponse.redirect(new URL("/pricing?error=checkout_failed", origin));
+      const errorUrl = new URL("/pricing", origin);
+      errorUrl.searchParams.set("error", "checkout_failed");
+      errorUrl.searchParams.set("detail", encodeURIComponent(responseText.substring(0, 200)));
+      return NextResponse.redirect(errorUrl);
     }
 
     let result;
