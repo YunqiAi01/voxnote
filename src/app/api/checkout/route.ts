@@ -36,35 +36,41 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Create Paddle transaction with checkout return URL
+    // Create Paddle transaction
+    const requestBody: Record<string, unknown> = {
+      items: [{
+        price_id: priceId,
+        quantity: 1,
+      }],
+      custom_data: {
+        user_id: userId,
+        plan,
+      },
+    };
+
     const response = await fetch(`${PADDLE_API}/transactions`, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${PADDLE_API_KEY}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        items: [{
-          price_id: priceId,
-          quantity: 1,
-        }],
-        custom_data: {
-          user_id: userId,
-          plan,
-        },
-        checkout: {
-          url: `${origin}/pricing?checkout=success`,
-        },
-      }),
+      body: JSON.stringify(requestBody),
     });
 
+    const responseText = await response.text();
+
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Paddle transaction error:", errorText);
+      console.error("Paddle transaction error:", response.status, responseText);
       return NextResponse.redirect(new URL("/pricing?error=checkout_failed", origin));
     }
 
-    const result = await response.json();
+    let result;
+    try {
+      result = JSON.parse(responseText);
+    } catch {
+      console.error("Failed to parse Paddle response:", responseText);
+      return NextResponse.redirect(new URL("/pricing?error=checkout_failed", origin));
+    }
     const checkoutUrl = result?.data?.checkout?.url;
 
     if (!checkoutUrl) {
