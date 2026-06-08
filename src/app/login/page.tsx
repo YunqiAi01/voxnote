@@ -1,16 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 
-export default function LoginPage() {
+function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get("redirect") || "/";
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,7 +29,7 @@ export default function LoginPage() {
       setError(loginError.message);
       setLoading(false);
     } else {
-      router.push("/");
+      router.push(redirectTo);
       router.refresh();
     }
   };
@@ -98,12 +100,20 @@ export default function LoginPage() {
 
           <p className="mt-6 text-center text-sm text-zinc-500 dark:text-zinc-400">
             还没有账号？{" "}
-            <Link href="/register" className="text-zinc-900 dark:text-zinc-100 font-medium hover:underline">
+            <Link href={`/register${redirectTo !== "/" ? `?redirect=${encodeURIComponent(redirectTo)}` : ""}`} className="text-zinc-900 dark:text-zinc-100 font-medium hover:underline">
               注册
             </Link>
           </p>
         </div>
       </main>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-zinc-50 dark:bg-zinc-950" />}>
+      <LoginForm />
+    </Suspense>
   );
 }
