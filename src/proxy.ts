@@ -25,17 +25,18 @@ export async function proxy(request: NextRequest) {
     }
   );
 
+  // Refresh session using getSession() — local JWT decode, no Supabase API call
   const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    data: { session },
+  } = await supabase.auth.getSession();
 
-  // Protect /history and /register (only allow unauthenticated for /login and /register)
+  // Protect /history (only allow authenticated users)
   const protectedPaths = ["/history"];
   const isProtected = protectedPaths.some((path) =>
     request.nextUrl.pathname.startsWith(path)
   );
 
-  if (!user && isProtected) {
+  if (!session?.user && isProtected) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);

@@ -19,12 +19,13 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL("/pricing", origin));
   }
 
-  // Try server-side auth check
+  // Try server-side auth check — use getSession() for local JWT decode
+  // (no Supabase API call needed, works even if Supabase is slow)
   let userId: string | null = null;
   try {
     const supabase = await createServerSupabase();
-    const { data: { user } } = await supabase.auth.getUser();
-    userId = user?.id || null;
+    const { data: { session } } = await supabase.auth.getSession();
+    userId = session?.user?.id || null;
   } catch {
     // Auth check failed, will redirect to login
   }
