@@ -13,22 +13,30 @@ const PRICE_IDS: Record<string, string> = {
 export async function GET(request: NextRequest) {
   const plan = request.nextUrl.searchParams.get("plan") || "monthly";
   const priceId = PRICE_IDS[plan];
+  const origin = request.nextUrl.origin;
 
   if (!priceId) {
-    return NextResponse.redirect(new URL("/pricing", request.url));
+    return NextResponse.redirect(new URL("/pricing", origin));
   }
 
-  const supabase = await createServerSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
+  // Try server-side auth check
+  let userId: string | null = null;
+  try {
+    const supabase = await createServerSupabase();
+    const { data: { user } } = await supabase.auth.getUser();
+    userId = user?.id || null;
+  } catch {
+    // Auth check failed, will redirect to login
+  }
 
-  if (!user) {
-    const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("redirect", "/pricing");
+  if (!userId) {
+    const loginUrl = new URL("/login", origin);
+    loginUrl.searchParams.set("redirect", `/pricing`);
     return NextResponse.redirect(loginUrl);
   }
 
   try {
-    // Create Paddle transaction
+    // Create Paddle transaction with checkout return URL
     const response = await fetch(`${PADDLE_API}/transactions`, {
       method: "POST",
       headers: {
@@ -41,8 +49,11 @@ export async function GET(request: NextRequest) {
           quantity: 1,
         }],
         custom_data: {
-          user_id: user.id,
+          user_id: userId,
           plan,
+        },
+        checkout: {
+          url: `${origin}/pricing?checkout=success`,
         },
       }),
     });
@@ -50,7 +61,7 @@ export async function GET(request: NextRequest) {
     if (!response.ok) {
       const errorText = await response.text();
       console.error("Paddle transaction error:", errorText);
-      return NextResponse.redirect(new URL("/pricing?error=checkout_failed", request.url));
+      return NextResponse.redirect(new URL("/pricing?error=checkout_failed", origin));
     }
 
     const result = await response.json();
@@ -58,12 +69,15 @@ export async function GET(request: NextRequest) {
 
     if (!checkoutUrl) {
       console.error("No checkout URL in Paddle response:", JSON.stringify(result));
-      return NextResponse.redirect(new URL("/pricing?error=no_checkout_url", request.url));
+      return NextResponse.redirect(new URL("/pricing?error=no_checkout_url", origin));
     }
+
+    // Log for debugging
+    console.log(`✅ Checkout created for user ${userId}: ${plan} → ${checkoutUrl}`);
 
     return NextResponse.redirect(checkoutUrl);
   } catch (error) {
     console.error("Checkout error:", error);
-    return NextResponse.redirect(new URL("/pricing?error=checkout_error", request.url));
+    return NextResponse.redirect(new URL("/pricing?error=checkout_error", origin));
   }
 }

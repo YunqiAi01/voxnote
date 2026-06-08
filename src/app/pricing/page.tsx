@@ -2,12 +2,22 @@
 
 import Header from "@/components/Header";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 
 const flashEnd = new Date("2026-12-31T23:59:59").getTime();
 
-export default function PricingPage() {
+function PricingContent() {
   const now = Date.now();
   const flashActive = now < flashEnd;
+  const searchParams = useSearchParams();
+  const error = searchParams.get("error");
+  const success = searchParams.get("checkout");
+  const errorMessages: Record<string, string> = {
+    checkout_failed: "支付创建失败，请稍后重试",
+    no_checkout_url: "支付链接生成失败",
+    checkout_error: "网络错误，请检查网络后重试",
+  };
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
@@ -22,6 +32,18 @@ export default function PricingPage() {
             免费开始，随时升级解锁全部功能
           </p>
         </div>
+
+        {/* Success / Error Message */}
+        {success === "success" && (
+          <div className="max-w-md mx-auto mb-8 p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-sm text-center">
+            🎉 支付成功！你的 Pro 会员已激活，请刷新页面查看。
+          </div>
+        )}
+        {error && errorMessages[error] && (
+          <div className="max-w-md mx-auto mb-8 p-4 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-sm text-center">
+            ❌ {errorMessages[error]}
+          </div>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
           {/* Free */}
@@ -132,5 +154,13 @@ export default function PricingPage() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function PricingPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-zinc-50 dark:bg-zinc-950" />}>
+      <PricingContent />
+    </Suspense>
   );
 }
