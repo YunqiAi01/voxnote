@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import RecordButton from "@/components/RecordButton";
 import Header from "@/components/Header";
+import Footer from "@/components/Footer";
 import UpgradeModal from "@/components/UpgradeModal";
 import { createClient } from "@/lib/supabase/client";
 import type { User } from "@supabase/supabase-js";
@@ -381,6 +382,8 @@ export default function Home() {
         message={upgradeModalMessage}
         onClose={() => setShowUpgradeModal(false)}
       />
+
+      <Footer />
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import Header from "@/components/Header";
+import Footer from "@/components/Footer";
 
 const flashEnd = new Date("2026-12-31T23:59:59").getTime();
 
@@ -174,6 +175,7 @@ export default async function PricingPage({
           </div>
         </div>
       </main>
+      <Footer />
     </div>
   );
 }
