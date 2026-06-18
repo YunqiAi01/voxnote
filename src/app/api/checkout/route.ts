@@ -22,10 +22,12 @@ export async function GET(request: NextRequest) {
   // Try server-side auth check — use getSession() for local JWT decode
   // (no Supabase API call needed, works even if Supabase is slow)
   let userId: string | null = null;
+  let customerEmail: string | undefined;
   try {
     const supabase = await createServerSupabase();
     const { data: { session } } = await supabase.auth.getSession();
     userId = session?.user?.id || null;
+    customerEmail = session?.user?.email || undefined;
   } catch {
     // Auth check failed, will redirect to login
   }
@@ -37,7 +39,6 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Create Paddle transaction
     const requestBody: Record<string, unknown> = {
       items: [{
         price_id: priceId,
@@ -46,6 +47,10 @@ export async function GET(request: NextRequest) {
       custom_data: {
         user_id: userId,
         plan,
+      },
+      // Generate a hosted checkout page URL
+      checkout: {
+        ...(customerEmail ? { customer_email: customerEmail } : {}),
       },
     };
 
