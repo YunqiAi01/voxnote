@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabase } from "@/lib/supabase/server";
+import { createServerClient } from "@supabase/ssr";
 
 const PADDLE_API = "https://api.paddle.com";
 const PADDLE_API_KEY = process.env.PADDLE_API_KEY || "";
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
 const PRICE_IDS: Record<string, string> = {
   monthly: process.env.PADDLE_PRICE_MONTHLY || "",
@@ -10,26 +12,78 @@ const PRICE_IDS: Record<string, string> = {
   flash: process.env.PADDLE_PRICE_FLASH || "",
 };
 
+/** Decode JWT payload locally — zero network calls, never fails */
+function parseJwtPayload(token: string): Record<string, unknown> | null {
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+    // JWT: header.payload.signature — we need the payload (middle part)
+    const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const json = Buffer.from(base64, "base64").toString("utf-8");
+    return JSON.parse(json);
+  } catch {
+    return null;
+  }
+}
+
 export async function GET(request: NextRequest) {
   const plan = request.nextUrl.searchParams.get("plan") || "monthly";
   const priceId = PRICE_IDS[plan];
   const origin = request.nextUrl.origin;
 
   if (!priceId) {
-    return NextResponse.redirect(new URL("/pricing", origin));
+    return NextResponse.redirect(new URL("/pricing?error=no_price", origin));
   }
 
-  // Try server-side auth check — use getSession() for local JWT decode
-  // (no Supabase API call needed, works even if Supabase is slow)
+  // ── Read auth cookie directly from request, no Supabase API call ──
   let userId: string | null = null;
   let customerEmail: string | undefined;
+
   try {
-    const supabase = await createServerSupabase();
-    const { data: { session } } = await supabase.auth.getSession();
-    userId = session?.user?.id || null;
-    customerEmail = session?.user?.email || undefined;
+    // 1. Read the Supabase auth cookie directly from the request
+    const cookieName = `sb-tjvaszcfknumpeklnlcd-auth-token`;
+    const authCookie = request.cookies.get(cookieName)?.value;
+    // Also try with base64-encoded name variant
+    const authCookieAlt = request.cookies.get(`sb-tjvaszcfknumpeklnlcd-auth-token.0`)?.value;
+
+    const cookieJson = authCookie || authCookieAlt;
+    if (cookieJson) {
+      // 2. Parse the cookie JSON (contains access_token, refresh_token, etc.)
+      const parsed = JSON.parse(cookieJson);
+      const accessToken = parsed?.access_token || parsed?.[0]?.access_token;
+      
+      if (accessToken) {
+        // 3. Decode JWT locally — extract user ID and email
+        const payload = parseJwtPayload(accessToken);
+        if (payload?.sub) {
+          userId = payload.sub as string;
+          customerEmail = (payload.email as string) || undefined;
+        }
+      }
+    }
   } catch {
-    // Auth check failed, will redirect to login
+    // Fall through — if cookie read fails, try Supabase client as backup
+  }
+
+  // ── Fallback: try Supabase SSR client if direct cookie read failed ──
+  if (!userId) {
+    try {
+      const supabase = createServerClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll();
+          },
+          setAll() {
+            // Not needed for read-only auth check
+          },
+        },
+      });
+      const { data: { session } } = await supabase.auth.getSession();
+      userId = session?.user?.id || null;
+      customerEmail = customerEmail || session?.user?.email || undefined;
+    } catch {
+      // Still no auth — will redirect to login
+    }
   }
 
   if (!userId) {
@@ -48,7 +102,6 @@ export async function GET(request: NextRequest) {
         user_id: userId,
         plan,
       },
-      // Generate a hosted checkout page URL
       checkout: {
         ...(customerEmail ? { customer_email: customerEmail } : {}),
       },
@@ -87,9 +140,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL("/pricing?error=no_checkout_url", origin));
     }
 
-    // Log for debugging
     console.log(`✅ Checkout created for user ${userId}: ${plan} → ${checkoutUrl}`);
-
     return NextResponse.redirect(checkoutUrl);
   } catch (error) {
     console.error("Checkout error:", error);
