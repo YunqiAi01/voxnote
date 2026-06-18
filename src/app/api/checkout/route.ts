@@ -3,6 +3,7 @@ import { createServerClient } from "@supabase/ssr";
 
 const PADDLE_API = "https://api.paddle.com";
 const PADDLE_API_KEY = process.env.PADDLE_API_KEY || "";
+const WEB_BASE = process.env.NEXT_PUBLIC_SITE_URL || "https://www.getvoxnote.com";
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
@@ -12,12 +13,11 @@ const PRICE_IDS: Record<string, string> = {
   flash: process.env.PADDLE_PRICE_FLASH || "",
 };
 
-/** Decode JWT payload locally — zero network calls, never fails */
+/** Decode JWT payload locally — zero network calls */
 function parseJwtPayload(token: string): Record<string, unknown> | null {
   try {
     const parts = token.split(".");
     if (parts.length !== 3) return null;
-    // JWT: header.payload.signature — we need the payload (middle part)
     const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
     const json = Buffer.from(base64, "base64").toString("utf-8");
     return JSON.parse(json);
@@ -29,31 +29,31 @@ function parseJwtPayload(token: string): Record<string, unknown> | null {
 export async function GET(request: NextRequest) {
   const plan = request.nextUrl.searchParams.get("plan") || "monthly";
   const priceId = PRICE_IDS[plan];
-  const origin = request.nextUrl.origin;
+
+  // ── Determine origin properly even behind proxies ──
+  const host = request.headers.get("host") || "www.getvoxnote.com";
+  const proto = request.headers.get("x-forwarded-proto") || "https";
+  const origin = `${proto}://${host}`;
 
   if (!priceId) {
     return NextResponse.redirect(new URL("/pricing?error=no_price", origin));
   }
 
-  // ── Read auth cookie directly from request, no Supabase API call ──
+  // ── Read auth cookie directly from request ──
   let userId: string | null = null;
   let customerEmail: string | undefined;
 
   try {
-    // 1. Read the Supabase auth cookie directly from the request
     const cookieName = `sb-tjvaszcfknumpeklnlcd-auth-token`;
     const authCookie = request.cookies.get(cookieName)?.value;
-    // Also try with base64-encoded name variant
     const authCookieAlt = request.cookies.get(`sb-tjvaszcfknumpeklnlcd-auth-token.0`)?.value;
 
     const cookieJson = authCookie || authCookieAlt;
     if (cookieJson) {
-      // 2. Parse the cookie JSON (contains access_token, refresh_token, etc.)
       const parsed = JSON.parse(cookieJson);
       const accessToken = parsed?.access_token || parsed?.[0]?.access_token;
-      
+
       if (accessToken) {
-        // 3. Decode JWT locally — extract user ID and email
         const payload = parseJwtPayload(accessToken);
         if (payload?.sub) {
           userId = payload.sub as string;
@@ -62,10 +62,10 @@ export async function GET(request: NextRequest) {
       }
     }
   } catch {
-    // Fall through — if cookie read fails, try Supabase client as backup
+    // Fall through
   }
 
-  // ── Fallback: try Supabase SSR client if direct cookie read failed ──
+  // ── Fallback: Supabase SSR client ──
   if (!userId) {
     try {
       const supabase = createServerClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
@@ -74,7 +74,7 @@ export async function GET(request: NextRequest) {
             return request.cookies.getAll();
           },
           setAll() {
-            // Not needed for read-only auth check
+            // Read-only
           },
         },
       });
@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
       userId = session?.user?.id || null;
       customerEmail = customerEmail || session?.user?.email || undefined;
     } catch {
-      // Still no auth — will redirect to login
+      // Still no auth
     }
   }
 
@@ -92,21 +92,39 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  try {
-    const requestBody: Record<string, unknown> = {
-      items: [{
+  // ── Build Paddle request ──
+  const successUrl = `${origin}/pricing?checkout=success`;
+  const requestBody: Record<string, unknown> = {
+    items: [
+      {
         price_id: priceId,
         quantity: 1,
-      }],
-      custom_data: {
-        user_id: userId,
-        plan,
       },
-      checkout: {
-        ...(customerEmail ? { customer_email: customerEmail } : {}),
-      },
-    };
+    ],
+    custom_data: {
+      user_id: userId,
+      plan,
+    },
+    checkout: {
+      // ✅ FIX 1: 必须指定返回 URL —— 付款完成后 Paddle 把用户送回这里
+      url: successUrl,
+    },
+  };
 
+  // ✅ FIX 2: customer_email 放在顶层，不是 checkout 里面
+  if (customerEmail) {
+    requestBody.customer_email = customerEmail;
+  }
+
+  // ✅ FIX 3: 日志输出完整的请求体用于调试
+  console.log("📤 Paddle request:", JSON.stringify({
+    ...requestBody,
+    // 隐藏敏感信息
+  }, null, 2));
+  console.log("🔑 Paddle API Key prefix:", PADDLE_API_KEY.substring(0, 12) + "...");
+  console.log("🏷️  Price ID:", priceId, "| Plan:", plan);
+
+  try {
     const response = await fetch(`${PADDLE_API}/transactions`, {
       method: "POST",
       headers: {
@@ -118,11 +136,31 @@ export async function GET(request: NextRequest) {
 
     const responseText = await response.text();
 
+    console.log(`📥 Paddle response [${response.status}]:`, responseText.substring(0, 500));
+
     if (!response.ok) {
-      console.error("Paddle transaction error:", response.status, responseText);
+      // ✅ FIX 4: 详细错误日志
+      console.error("❌ Paddle error:", {
+        status: response.status,
+        statusText: response.statusText,
+        body: responseText,
+        requestPriceId: priceId,
+        requestPlan: plan,
+        apiKeyPrefix: PADDLE_API_KEY.substring(0, 12),
+      });
+
+      // Try to parse the error
+      let errorMessage = responseText;
+      try {
+        const errorJson = JSON.parse(responseText);
+        errorMessage = errorJson?.error?.detail || errorJson?.error?.type || responseText;
+      } catch {
+        // Use raw text
+      }
+
       const errorUrl = new URL("/pricing", origin);
       errorUrl.searchParams.set("error", "checkout_failed");
-      errorUrl.searchParams.set("detail", encodeURIComponent(responseText.substring(0, 200)));
+      errorUrl.searchParams.set("detail", encodeURIComponent(errorMessage.substring(0, 300)));
       return NextResponse.redirect(errorUrl);
     }
 
@@ -130,20 +168,27 @@ export async function GET(request: NextRequest) {
     try {
       result = JSON.parse(responseText);
     } catch {
-      console.error("Failed to parse Paddle response:", responseText);
+      console.error("❌ Failed to parse Paddle JSON:", responseText);
       return NextResponse.redirect(new URL("/pricing?error=checkout_failed", origin));
     }
+
     const checkoutUrl = result?.data?.checkout?.url;
 
     if (!checkoutUrl) {
-      console.error("No checkout URL in Paddle response:", JSON.stringify(result));
+      console.error("❌ No checkout URL in response:", JSON.stringify(result).substring(0, 500));
       return NextResponse.redirect(new URL("/pricing?error=no_checkout_url", origin));
     }
 
     console.log(`✅ Checkout created for user ${userId}: ${plan} → ${checkoutUrl}`);
     return NextResponse.redirect(checkoutUrl);
   } catch (error) {
-    console.error("Checkout error:", error);
-    return NextResponse.redirect(new URL("/pricing?error=checkout_error", origin));
+    console.error("❌ Checkout exception:", error);
+    const errorUrl = new URL("/pricing", origin);
+    errorUrl.searchParams.set("error", "checkout_error");
+    errorUrl.searchParams.set(
+      "detail",
+      encodeURIComponent(error instanceof Error ? error.message : "Unknown error")
+    );
+    return NextResponse.redirect(errorUrl);
   }
 }
